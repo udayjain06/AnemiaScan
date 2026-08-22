@@ -18,7 +18,8 @@ function Result({data}) { const f=data.features,r=data.result; return <><div cla
 function App() {
   const video=useRef(null),stream=useRef(null); const [consented,setConsented]=useState(false),[preview,setPreview]=useState(null),[imageSource,setImageSource]=useState(null),[result,setResult]=useState(null),[busy,setBusy]=useState(false),[message,setMessage]=useState('Start the camera or upload a photo.');
   useEffect(()=>()=>stream.current?.getTracks().forEach(t=>t.stop()),[]);
-  async function startCamera(){try{stream.current=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user'}});video.current.srcObject=stream.current;setPreview('camera');setMessage('Align the lower eyelid inside the guide, then capture.');}catch{setMessage('Camera permission is unavailable. Use Upload photo instead.');}}
+  useEffect(()=>{if(preview==='camera'&&video.current&&stream.current)video.current.srcObject=stream.current;},[preview]);
+  async function startCamera(){try{stream.current=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user'}});setPreview('camera');setMessage('Align the lower eyelid inside the guide, then capture.');}catch{setMessage('Camera permission is unavailable. Use Upload photo instead.');}}
   function showImage(source){const captured=new Image();captured.onload=()=>{stream.current?.getTracks().forEach(t=>t.stop());setImageSource(source);setPreview('image');runAnalysis(captured);};captured.src=source;}
   function capture(){const c=document.createElement('canvas');c.width=video.current.videoWidth;c.height=video.current.videoHeight;c.getContext('2d').drawImage(video.current,0,0);showImage(c.toDataURL('image/png'));}
   function upload(e){const file=e.target.files?.[0];if(file)showImage(URL.createObjectURL(file));}
