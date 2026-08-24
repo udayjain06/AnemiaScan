@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client';
 import './styles.css';
 
 const API_URL = import.meta.env.VITE_API_URL?.replace(/\/$/, '');
-const guidance = { Normal: 'No elevated risk was detected in this screening. This does not rule out anaemia.', 'Mild Risk': 'Re-screen in even lighting. If pallor persists, arrange a routine haemoglobin blood test.', 'Moderate Risk': 'Please arrange a clinical haemoglobin blood test soon.', 'Severe Risk': 'Please seek a haemoglobin blood test at a health facility as soon as possible.' };
+const guidance = { Normal: 'No elevated risk was detected in this screening. This does not rule out anaemia.', Mild: 'Re-screen in even lighting. If pallor persists, arrange a routine haemoglobin blood test.', Anemic: 'Noticeable pallor detected. Haemoglobin is likely below 11 g/dL. Please arrange a clinical blood test soon.' };
 function hsv(r,g,b) { r/=255; g/=255; b/=255; const max=Math.max(r,g,b), min=Math.min(r,g,b); return {s:max===0?0:(max-min)/max,v:max}; }
 function localAnalysis(image) {
   const canvas=document.createElement('canvas'), width=image.naturalWidth||image.videoWidth, height=image.naturalHeight||image.videoHeight;
@@ -11,10 +11,11 @@ function localAnalysis(image) {
   const x=Math.floor(width*.38),y=Math.floor(height*.30),pixels=context.getImageData(x,y,Math.floor(width*.24),Math.floor(height*.24)).data;
   let r=0,g=0,b=0,saturation=0,value=0,count=0; for(let i=0;i<pixels.length;i+=4){r+=pixels[i];g+=pixels[i+1];b+=pixels[i+2];const c=hsv(pixels[i],pixels[i+1],pixels[i+2]);saturation+=c.s;value+=c.v;count++;}
   const avg_r=r/count,avg_g=g/count,avg_b=b/count,sat=saturation/count,val=value/count,erythema_index=((avg_r-(avg_g+avg_b)/2)/255)*(.5+sat),pallor_score=Math.max(0,Math.min(1,.5-erythema_index));
-  const band=pallor_score<.32?'Normal':pallor_score<.45?'Mild Risk':pallor_score<.60?'Moderate Risk':'Severe Risk';
-  return {features:{avg_r,avg_g,avg_b,saturation:sat,value:val,erythema_index,pallor_score},result:{band,guidance:guidance[band],method:'on_device_rule_based'}};
+  const band=pallor_score<.38?'Normal':pallor_score<.47?'Mild':'Anemic';
+  return {features:{avg_r,avg_g,avg_b,saturation:sat,value:val,erythema_index,pallor_score},result:{band,guidance:guidance[band],method:'on_device_rule_based',confidence:null}};
 }
-function Result({data}) { const f=data.features,r=data.result; return <><div className={`band ${r.band.toLowerCase().split(' ')[0]}`}>{r.band}</div><dl><dt>Pallor score</dt><dd>{f.pallor_score.toFixed(3)}</dd><dt>Erythema index</dt><dd>{f.erythema_index.toFixed(3)}</dd><dt>RGB mean</dt><dd>{Math.round(f.avg_r)}, {Math.round(f.avg_g)}, {Math.round(f.avg_b)}</dd><dt>Method</dt><dd>{r.method.replaceAll('_',' ')}</dd></dl><p className="advice">{r.guidance}</p></>; }
+function bandClass(band) { return band==='Normal'?'normal':band==='Mild'?'mild':'anemic'; }
+function Result({data}) { const f=data.features,r=data.result; return <><div className={`band ${bandClass(r.band)}`}>{r.band}{r.confidence!=null&&<span style={{fontSize:'12px',marginLeft:'8px',opacity:0.75}}>({Math.round(r.confidence*100)}% conf)</span>}</div><dl><dt>Pallor score</dt><dd>{f.pallor_score.toFixed(3)}</dd><dt>Erythema index</dt><dd>{f.erythema_index.toFixed(3)}</dd><dt>RGB mean</dt><dd>{Math.round(f.avg_r)}, {Math.round(f.avg_g)}, {Math.round(f.avg_b)}</dd><dt>Method</dt><dd>{r.method.replaceAll('_',' ')}</dd></dl><p className="advice">{r.guidance}</p></>; }
 function App() {
   const video=useRef(null),stream=useRef(null); const [consented,setConsented]=useState(false),[preview,setPreview]=useState(null),[imageSource,setImageSource]=useState(null),[result,setResult]=useState(null),[busy,setBusy]=useState(false),[message,setMessage]=useState('Start the camera or upload a photo.');
   useEffect(()=>()=>stream.current?.getTracks().forEach(t=>t.stop()),[]);
