@@ -24,7 +24,7 @@ from contextlib import contextmanager
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-from analysis import compute_features, rule_based_band
+from analysis import compute_features, ml_classify, load_model, is_ml_available
 
 DB_PATH = os.environ.get("ANEMIASCAN_DB", "screenings.db")
 MAX_IMAGE_BYTES = 8 * 1024 * 1024
@@ -32,7 +32,7 @@ ALLOWED_ORIGINS = [origin.strip() for origin in os.environ.get("ALLOWED_ORIGINS"
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
 
-app = FastAPI(title="AnemiaScan API", version="0.1.0")
+app = FastAPI(title="AnemiaScan API", version="0.2.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -40,6 +40,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ── Load ML model at startup ────────────────────────────────────────────────
+@app.on_event("startup")
+async def startup_event():
+    load_model()   # loads model_rf.pkl if present; logs a warning if not found
+
 
 @contextmanager
 def get_db():
@@ -65,7 +71,12 @@ def get_db():
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "classifier": "rule_based_v0", "storage": "supabase" if SUPABASE_URL else "sqlite_demo"}
+    classifier = "random_forest_v1" if is_ml_available() else "rule_based_v0"
+    return {
+        "status": "ok",
+        "classifier": classifier,
+        "storage": "supabase" if SUPABASE_URL else "sqlite_demo",
+    }
 
 
 def supabase_request(method: str, path: str, payload: dict | None = None):
@@ -85,7 +96,9 @@ def supabase_request(method: str, path: str, payload: dict | None = None):
 
 
 def screening_payload(record_id: str, features: dict, result: dict) -> dict:
-    return {"id": record_id, "band": result["band"], "method": result["method"], **features}
+    # Exclude the internal _colour_features ndarray before persisting
+    safe_features = {k: v for k, v in features.items() if not k.startswith("_")}
+    return {"id": record_id, "band": result["band"], "method": result["method"], **safe_features}
 
 
 @app.post("/analyze")
@@ -99,9 +112,13 @@ async def analyze(file: UploadFile = File(...)):
         features = compute_features(image_bytes)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    result = rule_based_band(features["pallor_score"])
+
+    result = ml_classify(features)
 
     record_id = str(uuid.uuid4())
+    # Strip internal keys before storing / returning
+    public_features = {k: v for k, v in features.items() if not k.startswith("_")}
+
     if SUPABASE_URL:
         supabase_request("POST", "screenings", screening_payload(record_id, features, result))
     else:
@@ -110,10 +127,16 @@ async def analyze(file: UploadFile = File(...)):
                 """INSERT INTO screenings
                    (id, ts, band, method, pallor_score, erythema_index, avg_r, avg_g, avg_b, saturation, value)
                    VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
-                (record_id, time.time(), result["band"], result["method"], features["pallor_score"], features["erythema_index"], features["avg_r"], features["avg_g"], features["avg_b"], features["saturation"], features["value"]),
+                (
+                    record_id, time.time(),
+                    result["band"], result["method"],
+                    public_features["pallor_score"], public_features["erythema_index"],
+                    public_features["avg_r"], public_features["avg_g"], public_features["avg_b"],
+                    public_features["saturation"], public_features["value"],
+                ),
             )
 
-    return {"id": record_id, "features": features, "result": result}
+    return {"id": record_id, "features": public_features, "result": result}
 
 
 @app.get("/screenings")
