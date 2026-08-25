@@ -1,44 +1,56 @@
-AnemiaScan Random Forest — Training Report
-============================================================
+AnemiaScan -- Improved Training Report (v2)
+=================================================================
 
-Dataset: D:\anemia_dataset\dataset anemia
-Train samples: 172, Test samples: 44
-CV accuracy (5-fold): 0.726 ± 0.084
-Test accuracy: 0.591
+Features: 37 (RGB+HSV+ratios+LAB+LBP)
+Augmentation: 6x brightness/flip/rotation/noise per real image
+LBP texture: enabled
+
+--- Classifier Comparison (5-fold CV on training data) ---
+  RandomForest             : 0.767 +/- 0.090
+  GradientBoosting         : 0.779 +/- 0.040
+  Ensemble(RF+GB)          : 0.791 +/- 0.047
+
+Best model: Ensemble(RF+GB)
+CV accuracy: 0.791 +/- 0.047
+Test accuracy: 0.568 (44 real held-out images)
 
 Classification Report:
               precision    recall  f1-score   support
 
       Anemic       0.53      0.73      0.62        11
-        Mild       0.20      0.50      0.29         4
-      Normal       0.84      0.55      0.67        29
+        Mild       0.00      0.00      0.00         4
+      Normal       0.77      0.59      0.67        29
 
-    accuracy                           0.59        44
-   macro avg       0.53      0.59      0.52        44
-weighted avg       0.71      0.59      0.62        44
+    accuracy                           0.57        44
+   macro avg       0.44      0.44      0.43        44
+weighted avg       0.64      0.57      0.59        44
 
 Confusion Matrix (rows=true, cols=pred):
           Anemic      Mild        Normal    
-Anemic             8           2           1
-Mild               0           2           2
-Normal             7           6          16
+Anemic             8           1           2
+Mild               1           0           3
+Normal             6           6          17
 
-Feature Importances:
-  erythema_index      : 0.1555
-  pallor_score        : 0.1511
-  rb_ratio            : 0.1001
-  rg_ratio            : 0.0616
-  area_fraction       : 0.0568
-  mean_s              : 0.0522
-  std_h               : 0.0490
-  gb_ratio            : 0.0442
-  std_b               : 0.0399
-  std_g               : 0.0388
-  mean_r              : 0.0359
-  mean_h              : 0.0349
-  std_r               : 0.0327
-  std_v               : 0.0323
-  mean_v              : 0.0320
-  mean_b              : 0.0316
-  mean_g              : 0.0283
-  std_s               : 0.0229
+Feature importances (top 15):
+  rb_ratio                 : 0.0977
+  pallor_score             : 0.0842
+  erythema_index           : 0.0728
+  rg_ratio                 : 0.0554
+  mean_r                   : 0.0552
+  std_r                    : 0.0528
+  std_g                    : 0.0496
+  std_b                    : 0.0468
+  std_h                    : 0.0463
+  mean_g                   : 0.0456
+  mean_h                   : 0.0442
+  mean_b                   : 0.0440
+  lab_mean_a               : 0.0347
+  lab_mean_b               : 0.0298
+  gb_ratio                 : 0.0251
+
+--- Hgb Regression ---
+Best: RF_reg
+CV MAE: 1.21 g/dL
+Test MAE: 1.70 g/dL
+Test R2: 0.045
+Regression->class accuracy: 0.545

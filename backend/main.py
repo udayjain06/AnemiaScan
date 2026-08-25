@@ -24,7 +24,10 @@ from contextlib import contextmanager
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-from analysis import compute_features, ml_classify, load_model, is_ml_available
+from analysis import (
+    compute_features, ml_classify, load_model,
+    is_ml_available, classifier_info,
+)
 
 DB_PATH = os.environ.get("ANEMIASCAN_DB", "screenings.db")
 MAX_IMAGE_BYTES = 8 * 1024 * 1024
@@ -32,7 +35,7 @@ ALLOWED_ORIGINS = [origin.strip() for origin in os.environ.get("ALLOWED_ORIGINS"
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
 
-app = FastAPI(title="AnemiaScan API", version="0.2.0")
+app = FastAPI(title="AnemiaScan API", version="0.3.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -41,10 +44,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ── Load ML model at startup ────────────────────────────────────────────────
+# ── Load ML models at startup ───────────────────────────────────────────────
 @app.on_event("startup")
 async def startup_event():
-    load_model()   # loads model_rf.pkl if present; logs a warning if not found
+    load_model()   # loads model_rf.pkl (classifier) + model_reg.pkl (regression)
 
 
 @contextmanager
@@ -71,10 +74,9 @@ def get_db():
 
 @app.get("/health")
 def health():
-    classifier = "random_forest_v1" if is_ml_available() else "rule_based_v0"
     return {
         "status": "ok",
-        "classifier": classifier,
+        "classifier": classifier_info(),
         "storage": "supabase" if SUPABASE_URL else "sqlite_demo",
     }
 
