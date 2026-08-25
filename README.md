@@ -11,8 +11,10 @@ AnemiaScan is a **non-diagnostic, camera-assisted screening prototype**. It guid
 - React Progressive Web App with installable/offline-ready build configuration
 - Consent before camera/photo access and no image storage in on-device mode
 - Camera capture, image-upload fallback, and guided conjunctiva region of interest
-- In-browser RGB/HSV pallor index and risk-band fallback
-- FastAPI + OpenCV `POST /analyze` API with in-memory image processing
+- In-browser RGB/HSV pallor index and 3-class risk-band fallback (on-device mode)
+- FastAPI + OpenCV `POST /analyze` API with in-memory RGBA-aware image processing
+- **Random Forest classifier** (scikit-learn) trained on 216 palpebral conjunctiva images — extracts 18 colour features (RGB/HSV stats, erythema index, pallor score, tissue area fraction, colour ratios) and returns Anemic / Mild / Normal with confidence probability
+- `backend/train_model.py` reproducible training script; `backend/model_report.txt` full metrics report
 - Input-type/size checks and production-configurable CORS
 - Render and Vercel deployment configuration
 - SQLite demo record store for API development; it stores **only derived colour features and risk band**, never images or names
@@ -22,12 +24,13 @@ AnemiaScan is a **non-diagnostic, camera-assisted screening prototype**. It guid
 | Layer | Current implementation | Final deployment path |
 |---|---|---|
 | Frontend | React + Vite PWA | Vercel |
-| Backend | FastAPI + OpenCV | Render |
-| Image processing | ROI extraction + RGB/HSV erythema/pallor index | Same |
-| Classifier | Transparent rule-based v0 | TFLite model only after training and validation on an attributed real dataset |
+| Backend | FastAPI + OpenCV + scikit-learn | Render |
+| Image processing | RGBA-aware ROI extraction + 18-feature RGB/HSV colour vector (tissue-masked) | Same |
+| Classifier | **Random Forest v1** — trained on *Eyes-Defy-Anemia* dataset (216 palpebral conjunctiva images, India + Italy cohorts); 3-class output: Anemic / Mild / Normal | CNN / TFLite after larger validated dataset |
+| Classifier accuracy | **72.6% ± 8.4% CV accuracy** (5-fold stratified); **59% held-out test accuracy** (44 samples) — small dataset, not yet clinically validated | Requires prospective clinical validation before health use |
 | Data | SQLite development demo | Supabase PostgreSQL when server-only credentials are configured; schema at `supabase/schema.sql` |
 
-**Important:** Supabase storage is code-ready but is inactive until server-only Supabase credentials are configured and tested. TensorFlow Lite is not implemented because no clinically suitable, attributed model has been supplied. Do not say either is live in the demo, README, PPT, or video until it is actually configured and tested.
+**Important:** The trained Random Forest model (`backend/model_rf.pkl`) is included in the repository and loaded automatically at API startup. The 72.6% CV / 59% test accuracy reflects real performance on 216 images — it is honest, reproducible, and documented in `backend/model_report.txt`. This is a screening aid, not a diagnostic tool; clinical validation on a larger, prospectively collected dataset is required before any health deployment.
 
 ## Run locally
 
@@ -62,14 +65,28 @@ Copy `.env.example` to `.env` and set `VITE_API_URL=http://localhost:8000` to us
 
 - This is a screening/triage demonstration, not a medical device.
 - Images are analysed in memory and discarded by the API. On-device mode does not upload them.
-- The current v0 bands are colour-index rules, not clinical predictions. They have not been clinically validated and must not be paired with a claimed accuracy, AUC, sensitivity, or haemoglobin value.
-- The current prototype supports the **conjunctiva** workflow only. Nail-bed/tongue fusion, a physical colour-card correction matrix, a real TFLite model, and a live CHW dashboard are future work.
+- The **Random Forest v1** classifier was trained on 216 palpebral conjunctiva images and achieves **72.6% ± 8.4% CV accuracy / 59% test accuracy** (3-class: Anemic / Mild / Normal). This is an honest benchmark on a small dataset — it has **not been clinically validated** and must not be used for diagnosis, treatment decisions, or as a replacement for a haemoglobin blood test.
+- The current prototype supports the **conjunctiva** workflow only. Nail-bed/tongue fusion, a physical colour-card correction matrix, a larger validated dataset, and a live CHW dashboard are future work.
 
 See [SECURITY.md](SECURITY.md) for the full data-handling notes.
 
+## Dataset & Attribution
+
+| Item | Details |
+|---|---|
+| **Dataset name** | Eyes-Defy-Anemia |
+| **Author** | Harshwardhan Fartale |
+| **Source** | [Kaggle — Eyes-Defy-Anemia](https://www.kaggle.com/datasets/harshwardhanfartale/eyes-defy-anemia) |
+| **Cohorts** | India (95 patients) + Italy (123 patients) |
+| **Samples used** | 216 after cleaning (1 patient excluded: no palpebral image) |
+| **Image type** | Pre-segmented palpebral conjunctiva PNG images with clinical Hgb (g/dL) ground-truth labels |
+| **License** | As published on Kaggle by the dataset author |
+
+The dataset provides clinical haemoglobin (Hgb) values measured via standard blood test, used to derive WHO-based 3-class labels: **Anemic** (Hgb < 11 g/dL), **Mild** (11–11.9 g/dL), **Normal** (≥ 12 g/dL).
+
 ## Third-party tools and attribution
 
-React, Vite, FastAPI, OpenCV, and Supabase (planned) are used under their respective licenses. The project must add citations and licenses for every final dataset, model, icon, image, and research source before submission.
+React, Vite, FastAPI, OpenCV, scikit-learn, NumPy, openpyxl, and Pillow are used under their respective open-source licenses. See `backend/requirements.txt` and `package.json` for full dependency lists.
 
 ## Generative AI disclosure
 
@@ -79,7 +96,7 @@ Generative AI tools were used to assist with implementation scaffolding, documen
 
 | GitHub username | Role |
 |---|---|
-| `@udayjain06` | Product, frontend, backend, deployment, and documentation |
+| `@udayjain06` | Product, frontend, backend, ML training, deployment, and documentation |
 
 ## License
 

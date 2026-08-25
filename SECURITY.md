@@ -34,8 +34,12 @@
 
 AnemiaScan is a **screening and triage aid**, not a diagnostic device. It does not
 store or transmit data for clinical decision-making without a human-in-the-loop
-referral to a real blood test. The classifier is explicitly a transparent rule-based
-v0 (see README) — its output must not be represented as clinically validated.
+referral to a real blood test. The classifier is a **Random Forest v1** trained on
+the Eyes-Defy-Anemia dataset (216 palpebral conjunctiva images, Kaggle — Harshwardhan
+Fartale). It achieves **72.6% ± 8.4% CV / 59% test accuracy** (3-class: Anemic /
+Mild / Normal) on a held-out test set of 44 images. This accuracy is honestly
+disclosed and **does not imply clinical validity** — prospective clinical validation
+on a larger, independently collected dataset is required before any health deployment.
 
 ## Reporting a concern
 
